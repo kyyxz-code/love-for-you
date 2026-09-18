@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>I Love You ❤️</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<script>
+"use strict";
+
+/* =========================================================
+   CONFIG
+========================================================= */
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let WIDTH;
+let HEIGHT;
+
+const WORDS = [
+  "love you",
+  "Love You",
+  "LOVE YOU"
+];
+
+const CENTER_TEXT = "Love You";
+
+const COLORS = [
+  [70, 130, 180],
+  [30, 144, 255],
+  [0, 191, 255],
+  [100, 149, 237],
+  [65, 105, 225]
+];
+
+const SCALE = 20;
+
+let particles = [];
+let frame = 0;
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+function resizeCanvas() {
+  WIDTH = canvas.width = window.innerWidth * devicePixelRatio;
+  HEIGHT = canvas.height = window.innerHeight * devicePixelRatio;
+
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+
+  ctx.setTransform(
+    devicePixelRatio,
+    0,
+    0,
+    devicePixelRatio,
+    0,
+    0
+  );
+
+  WIDTH = window.innerWidth;
+  HEIGHT = window.innerHeight;
+}
+
+window.addEventListener("resize", resizeCanvas);
+
+resizeCanvas();
+
+
+/* =========================================================
+   RANDOM HELPERS
+========================================================= */
+
+function randomChoice(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function random(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+
+/* =========================================================
+   HEART EQUATION
+========================================================= */
+
+function heartXY(t) {
+
+  const x =
+    16 * Math.pow(Math.sin(t), 3);
+
+  const y =
+    13 * Math.cos(t)
+    - 5 * Math.cos(2 * t)
+    - 2 * Math.cos(3 * t)
+    - Math.cos(4 * t);
+
+  return {
+    x: x,
+    y: -y
+  };
+}
+
+
+/* =========================================================
+   TO SCREEN
+========================================================= */
+
+function toScreen(x, y) {
+
+  return {
+    x: x * SCALE + WIDTH / 2,
+    y: y * SCALE + HEIGHT / 2
+  };
+
+}
+
+
+/* =========================================================
+   PARTICLE CLASS
+========================================================= */
+
+class Particle {
+
+  constructor(x, y, order, kind) {
+
+    this.x = x;
+    this.y = y;
+
+    this.order = order;
+
+    this.kind = kind;
+
+    this.word = randomChoice(WORDS);
+
+    this.color = randomChoice(COLORS);
+
+    this.alpha = 0;
+
+    this.flicker =
+      random(0, Math.PI * 2);
+
+    this.delay = 0;
+
+    this.sizeMult =
+      random(0.85, 1.15);
+  }
+
+}
+
+
+/* =========================================================
+   BUILD OUTLINE
+========================================================= */
+
+function buildOutlineParticles(
+  count,
+  minGap = 30
+) {
+
+  const result = [];
+  const placed = [];
+
+  for (let i = 0; i < count; i++) {
+
+    const t =
+      (i / count) * Math.PI * 2;
+
+    const heart =
+      heartXY(t);
+
+    const point =
+      toScreen(
+        heart.x,
+        heart.y
+      );
+
+    let tooClose = false;
+
+    for (const p of placed) {
+
+      const distance =
+        Math.hypot(
+          point.x - p.x,
+          point.y - p.y
+        );
+
+      if (distance < minGap) {
+
+        tooClose = true;
+        break;
+
+      }
+
+    }
+
+    if (tooClose) continue;
+
+    placed.push(point);
+
+    result.push(
+      new Particle(
+        point.x,
+        point.y,
+        i,
+        "outline"
+      )
+    );
+
+  }
+
+  return result;
+}
+
+
+/* =========================================================
+   BUILD FILL
+========================================================= */
+
+function buildFillParticles(
+  count,
+  minGap = 46
+) {
+
+  const result = [];
+  const placed = [];
+
+  let attempts = 0;
+
+  const maxAttempts =
+    count * 80;
+
+  while (
+    result.length < count &&
+    attempts < maxAttempts
+  ) {
+
+    attempts++;
+
+    const t =
+      random(
+        0,
+        Math.PI * 2
+      );
+
+    const r =
+      random(0, 0.86);
+
+    const heart =
+      heartXY(t);
+
+    const point =
+      toScreen(
+        heart.x * r,
+        heart.y * r
+      );
+
+    let tooClose = false;
+
+    for (const p of placed) {
+
+      const distance =
+        Math.hypot(
+          point.x - p.x,
+          point.y - p.y
+        );
+
+      if (distance < minGap) {
+
+        tooClose = true;
+        break;
+
+      }
+
+    }
+
+    if (tooClose) continue;
+
+    placed.push(point);
+
+    result.push(
+      new Particle(
+        point.x,
+        point.y,
+        Math.floor(random(0, 321)),
+        "fill"
+      )
+    );
+
+  }
+
+  return result;
+}
+
+
+/* =========================================================
+   CREATE PARTICLES
+========================================================= */
+
+function createParticles() {
+
+  particles = [];
+
+  const outline =
+    buildOutlineParticles(160);
+
+  const fill =
+    buildFillParticles(130);
+
+  const outlineSpan =
+    outline.length > 0
+      ? Math.max(
+          ...outline.map(
+            p => p.order
+          )
+        )
+      : 0;
+
+  const framesPerStep = 1.6;
+
+  const fillStartFrame =
+    Math.floor(
+      outlineSpan *
+      framesPerStep
+    ) + 30;
+
+  for (const p of fill) {
+
+    p.delay =
+      fillStartFrame +
+      p.order;
+
+  }
+
+  for (const p of outline) {
+
+    p.delay =
+      Math.floor(
+        p.order *
+        framesPerStep
+      );
+
+  }
+
+  particles =
+    outline.concat(fill);
+
+}
+
+
+/* =========================================================
+   DRAW GLOW TEXT
+========================================================= */
+
+function drawGlowText(
+  particle,
+  alpha
+) {
+
+  if (alpha <= 0) return;
+
+  const fontSize =
+    (particle.kind === "outline"
+      ? 20
+      : 17)
+    * particle.sizeMult;
+
+  const font =
+    bold ${fontSize}px Arial;
+
+  const color =
+    `rgb(
+      ${particle.color[0]},
+      ${particle.color[1]},
+      ${particle.color[2]}
+    )`;
+
+  ctx.save();
+
+  ctx.font = font;
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  /*
+    Glow
+  */
+
+  if (alpha > 10) {
+
+    ctx.shadowColor = color;
+
+    ctx.shadowBlur =
+      18;
+
+    ctx.globalAlpha =
+      (alpha / 255) * 0.35;
+
+    ctx.fillStyle =
+      color;
+
+    ctx.fillText(
+      particle.word,
+      particle.x,
+      particle.y
+    );
+
+  }
+
+  /*
+    Text utama
+  */
+
+  ctx.shadowBlur = 0;
+
+  ctx.globalAlpha =
+    alpha / 255;
+
+  ctx.fillStyle =
+    color;
+
+  ctx.fillText(
+    particle.word,
+    particle.x,
+    particle.y
+  );
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   DRAW CENTER TEXT
+========================================================= */
+
+function drawCenterText(
+  centerStart
+) {
+
+  if (frame <= centerStart)
+    return;
+
+  const progress =
+    Math.min(
+      1,
+      (frame - centerStart) / 60
+    );
+
+  const centerAlpha =
+    255 *
+    (
+      1 -
+      Math.exp(-progress * 8)
+    );
+
+  const pulse =
+    1 +
+    0.025 *
+    Math.sin(
+      frame * 0.05
+    );
+
+  const fontSize =
+    54 * pulse;
+
+  ctx.save();
+
+  ctx.font =
+    bold ${fontSize}px Georgia;
+
+  ctx.textAlign =
+    "center";
+
+  ctx.textBaseline =
+    "middle";
+
+  /*
+    Glow tulisan tengah
+  */
+
+  ctx.shadowColor =
+    "rgba(255, 250, 245, 0.9)";
+
+  ctx.shadowBlur =
+    25;
+
+  ctx.globalAlpha =
+    (centerAlpha / 255) * 0.35;
+
+  ctx.fillStyle =
+    "rgb(255, 250, 245)";
+
+  ctx.fillText(
+    CENTER_TEXT,
+    WIDTH / 2,
+    HEIGHT / 2
+  );
+
+  /*
+    Tulisan utama
+  */
+
+  ctx.shadowBlur = 0;
+
+  ctx.globalAlpha =
+    centerAlpha / 255;
+
+  ctx.fillStyle =
+    "rgb(255, 250, 245)";
+
+  ctx.fillText(
+    CENTER_TEXT,
+    WIDTH / 2,
+    HEIGHT / 2
+  );
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+function animate() {
+
+  frame++;
+
+  /*
+    Background
+  */
+
+  ctx.clearRect(
+    0,
+    0,
+    WIDTH,
+    HEIGHT
+  );
+
+  ctx.fillStyle =
+    "black";
+
+  ctx.fillRect(
+    0,
+    0,
+    WIDTH,
+    HEIGHT
+  );
+
+
+  /*
+    Particles
+  */
+
+  for (const p of particles) {
+
+    /*
+      Fade in
+    */
+
+    if (
+      frame > p.delay &&
+      p.alpha < 255
+    ) {
+
+      p.alpha =
+        Math.min(
+          255,
+          p.alpha +
+          14 +
+          Math.floor(
+            random(0, 5)
+          )
+        );
+
+    }
+
+
+    /*
+      Flicker
+    */
+
+    let flick = 1;
+
+    if (p.alpha >= 255) {
+
+      flick =
+        0.75 +
+        0.25 *
+        Math.sin(
+          frame * 0.04 +
+          p.flicker
+        );
+
+    }
+
+
+    const alpha =
+      p.alpha *
+      flick;
+
+    if (alpha <= 0)
+      continue;
+
+    drawGlowText(
+      p,
+      alpha
+    );
+
+  }
+
+
+  /*
+    Center text
+  */
+
+  const fillParticles =
+    particles.filter(
+      p => p.kind === "fill"
+    );
+
+  const fillStartFrame =
+    fillParticles.length > 0
+      ? Math.max(
+          ...fillParticles.map(
+            p => p.delay
+          )
+        ) - 320
+      : 300;
+
+  const centerStart =
+    fillStartFrame + 200;
+
+  drawCenterText(
+    centerStart
+  );
+
+
+  requestAnimationFrame(
+    animate
+  );
+
+}
+
+
+/* =========================================================
+   START
+========================================================= */
+
+createParticles();
+
+animate();
+
+</script>
+
+</body>
+</html>
